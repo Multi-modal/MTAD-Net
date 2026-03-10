@@ -38,9 +38,9 @@ class Exp_Basic(object):
             'PAttn': PAttn,
             'TimeXer': TimeXer
         }
-        if args.model == 'TimeVLM':
-            from src.TimeVLM import model as TimeVLM
-            self.model_dict['TimeVLM'] = TimeVLM
+        if args.model == 'MTAD':
+            from src.MTAD import model as MTAD
+            self.model_dict['MTAD'] = MTAD
 
         self.device = self._acquire_device()
         self.model = self._build_model().to(self.device)
@@ -50,9 +50,7 @@ class Exp_Basic(object):
         
         
     def _log_model_parameters(self):
-        """
-        打印模型参数。
-        """
+
         def count_learnable_parameters(model):
             return sum(p.numel() for p in model.parameters() if p.requires_grad)
         

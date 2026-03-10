@@ -1,13 +1,7 @@
 import argparse
 import os
 import torch
-from exp.exp_few_shot_forecasting import Exp_Few_Shot_Forecast
-from exp.exp_long_term_forecasting import Exp_Long_Term_Forecast
-from exp.exp_zero_shot_forecasting import Exp_Zero_Shot_Forecast
-from exp.exp_imputation import Exp_Imputation
-from exp.exp_short_term_forecasting import Exp_Short_Term_Forecast
 from exp.exp_anomaly_detection import Exp_Anomaly_Detection
-from exp.exp_classification import Exp_Classification
 from utils.print_args import print_args
 from utils.tools import load_content
 import random
@@ -29,7 +23,7 @@ if __name__ == '__main__':
     torch.manual_seed(fix_seed)
     np.random.seed(fix_seed)
 
-    parser = argparse.ArgumentParser(description='TimeVLM')
+    parser = argparse.ArgumentParser(description='MTAD')
 
     # basic config
     parser.add_argument('--task_name', type=str, required=True, default='long_term_forecast', help='task name, options:[long_term_forecast, short_term_forecast, imputation, classification, anomaly_detection, zero_shot_forecast, few_shot_forecast]')
@@ -46,17 +40,13 @@ if __name__ == '__main__':
     parser.add_argument('--freq', type=str, default='h', help='freq for time features encoding, options:[s:secondly, t:minutely, h:hourly, d:daily, b:business days, w:weekly, m:monthly], you can also use more detailed freq like 15min or 3h')
     parser.add_argument('--checkpoints', type=str, default='./checkpoints/', help='location of model checkpoints')
 
-    # forecasting task
     parser.add_argument('--seq_len', type=int, default=96, help='input sequence length')
     parser.add_argument('--label_len', type=int, default=48, help='start token length')
     parser.add_argument('--pred_len', type=int, default=96, help='prediction sequence length')
     parser.add_argument('--seasonal_patterns', type=str, default='Monthly', help='subset for M4')
     parser.add_argument('--inverse', action='store_true', help='inverse output data', default=False)
 
-    # inputation task
     parser.add_argument('--mask_rate', type=float, default=0.25, help='mask ratio')
-
-    # anomaly detection task
     parser.add_argument('--anomaly_ratio', type=float, default=0.25, help='prior anomaly ratio (%)')
 
     # model define
@@ -99,7 +89,7 @@ if __name__ == '__main__':
     parser.add_argument('--use_amp', action='store_true', help='use automatic mixed precision training', default=False)
     
     # hyperparameters
-    parser.add_argument('--vlm_type', type=str, default='CLIP', help='VLM model type, e.g. CLIP, BLIP2, etc.')
+    parser.add_argument('--mtad_type', type=str, default='CLIP', help='MTAD model type, e.g. CLIP, BLIP2, etc.')
     parser.add_argument('--image_size', type=int, default=224, help='image size for time series to image')
     parser.add_argument('--memory_bank_size', type=int, default=20, help='memory bank size')
     parser.add_argument('--patch_memory_size', type=int, default=100, help='patch memory bank size')
@@ -107,10 +97,10 @@ if __name__ == '__main__':
     parser.add_argument('--interpolation', type=str, default='bilinear')
     parser.add_argument('--norm_const', type=float, default=0.4)
     parser.add_argument('--three_channel_image', type=str2bool, default=True, help='use three channel image')
-    parser.add_argument('--finetune_vlm', type=str2bool, default=False, help='finetune VLM model')
+    parser.add_argument('--finetune_mtad', type=str2bool, default=False, help='finetune MTAD model')
     parser.add_argument('--learnable_image', type=str2bool, default=True, help='learnable image')
     parser.add_argument('--save_images', type=str2bool, default=False, help='save images')
-    parser.add_argument('--use_cross_attention', type=str2bool, default=True, help='use cross attention to fuse image and text embeddings in customVLM')
+    parser.add_argument('--use_cross_attention', type=str2bool, default=True, help='use cross attention to fuse image and text embeddings in customMTAD')
     parser.add_argument('--w_out_visual', type=str2bool, default=False, help='without visual part')
     parser.add_argument('--w_out_text', type=str2bool, default=False, help='without text part')
     parser.add_argument('--w_out_query', type=str2bool, default=False, help='without query part')
@@ -160,13 +150,10 @@ if __name__ == '__main__':
     parser.add_argument('--align_const', type=float, default=0.4)
 
     parser.add_argument('--wo_ts', type=int, default=0, help='without/with Time Series Data 1/0')
-    
-    # zero-shot forecasting
+
     parser.add_argument('--target_data', type=str, default='ETTh2', help='target dataset type')
     parser.add_argument('--target_root_path', type=str, default='./data/ETT/', help='root path of the target data file')
     parser.add_argument('--target_data_path', type=str, default='ETTh2.csv', help='target data file')
-        
-    # few-shot forecasting
     parser.add_argument('--percent', type=float, default=1, help='proportion of in-distribution downstream dataset')
 
     args = parser.parse_args()
@@ -179,34 +166,20 @@ if __name__ == '__main__':
         args.device_ids = [int(id_) for id_ in device_ids]
         args.gpu = args.device_ids[0]
 
-    # args.content = load_content(args)
+    args.content = load_content(args)
     
     # print arguments
     print_args(args)
 
-    if args.task_name == 'long_term_forecast':
-        Exp = Exp_Long_Term_Forecast
-    elif args.task_name == 'short_term_forecast':
-        Exp = Exp_Short_Term_Forecast
-    elif args.task_name == 'imputation':
-        Exp = Exp_Imputation
-    elif args.task_name == 'anomaly_detection':
-        Exp = Exp_Anomaly_Detection
-    elif args.task_name == 'classification':
-        Exp = Exp_Classification
-    elif args.task_name == 'zero_shot_forecast':
-        Exp = Exp_Zero_Shot_Forecast
-    elif args.task_name == 'few_shot_forecast':
-        Exp = Exp_Few_Shot_Forecast
-    else:
-        Exp = Exp_Long_Term_Forecast
+    Exp = Exp_Anomaly_Detection
+
 
     if args.is_training:
         for ii in range(args.itr):
             exp = Exp(args)
             setting = '{}_{}_{}_{}_{}_ft{}_sl{}_ll{}_pl{}_dm{}_fs{}_{}'.format(
                 args.task_name,
-                args.vlm_type,
+                args.mtad_type,
                 args.model_id,
                 args.model,
                 args.data,
@@ -229,7 +202,7 @@ if __name__ == '__main__':
         exp = Exp(args)
         setting = '{}_{}_{}_{}_{}_ft{}_sl{}_ll{}_pl{}_dm{}_fs{}_{}'.format(
             args.task_name,
-            args.vlm_type,
+            args.mtad_type,
             args.model_id,
             args.model,
             args.data,

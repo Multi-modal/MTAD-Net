@@ -28,7 +28,6 @@ warnings.filterwarnings('ignore')
 
 
 class AbileneSegLoader(Dataset):
-    """Abilene数据加载器 - 适配革命性TimeVLM"""
 
     def __init__(self, args, root_path, win_size, step=1, flag="train"):
         self.flag = flag
@@ -37,99 +36,48 @@ class AbileneSegLoader(Dataset):
         self.scaler = StandardScaler()
         self.args = args
 
-        print(f"\n{'='*60}")
-        print(f"[Abilene Revolutionary] Initializing Dataset")
-        print(f"{'='*60}")
-        print(f"Flag: {flag}")
-
-        # 加载数据文件
         train_file = os.path.join(root_path, 'train.npy')
         test_file = os.path.join(root_path, 'test.npy')
         label_file = os.path.join(root_path, 'test_label.npy')
 
-        # 检查文件存在性
         for f, name in [(train_file, 'train'), (test_file, 'test'), (label_file, 'label')]:
             if not os.path.exists(f):
                 raise FileNotFoundError(f"{name} file not found: {f}")
 
-        # 加载numpy数组（允许pickle）
         train_data = np.load(train_file, allow_pickle=True)
         test_data = np.load(test_file, allow_pickle=True)
         test_labels = np.load(label_file, allow_pickle=True)
 
-        print(f"\n[Load] Data shapes:")
-        print(f"  Train:  {train_data.shape}")
-        print(f"  Test:   {test_data.shape}")
-        print(f"  Labels: {test_labels.shape}")
-
-        # 数据清洗（处理NaN和Inf）
         train_data = np.nan_to_num(train_data, nan=0.0, posinf=0.0, neginf=0.0)
         test_data = np.nan_to_num(test_data, nan=0.0, posinf=0.0, neginf=0.0)
 
-        # 标准化
         self.scaler.fit(train_data)
         self.train = self.scaler.transform(train_data)
         self.test = self.scaler.transform(test_data)
 
-        # 划分验证集（训练集的20%）
         split_idx = int(len(self.train) * 0.8)
         self.val = self.train[split_idx:]
 
-        # ★★★ 关键：保持2D标签，不做any聚合 ★★★
         self.test_labels_2d = test_labels
 
-        # 如果标签是1D，扩展为2D
         if len(self.test_labels_2d.shape) == 1:
-            print(f"  [Info] Converting 1D labels to 2D...")
             self.test_labels_2d = self.test_labels_2d[:, np.newaxis]
 
-        # 如果标签列数不匹配，复制到所有flows
         if self.test_labels_2d.shape[1] == 1 and self.test.shape[1] > 1:
-            print(f"  [Info] Expanding labels from 1 to {self.test.shape[1]} flows...")
             self.test_labels_2d = np.tile(self.test_labels_2d, (1, self.test.shape[1]))
 
-        # 确保维度匹配
-        assert self.test.shape[0] == self.test_labels_2d.shape[0], \
-            f"Shape mismatch: test={self.test.shape[0]}, labels={self.test_labels_2d.shape[0]}"
-        assert self.test.shape[1] == self.test_labels_2d.shape[1], \
-            f"Shape mismatch: test_flows={self.test.shape[1]}, label_flows={self.test_labels_2d.shape[1]}"
-
-        # 验证标签
         self._validate_labels()
 
-        print(f"\n[Abilene Revolutionary] Dataset Ready:")
-        print(f"  Train samples: {len(self.train)}")
-        print(f"  Val samples:   {len(self.val)}")
-        print(f"  Test samples:  {len(self.test)}")
-        print(f"  Flows:         {self.test.shape[1]}")
-        print(f"{'='*60}\n")
 
     def _validate_labels(self):
-        """验证标签正确性"""
-        print(f"\n{'='*60}")
-        print(f"[Label Validation]")
-        print(f"{'='*60}")
 
-        # 2D标签统计
         total_points = self.test_labels_2d.size
         anomaly_points = np.sum(self.test_labels_2d > 0)
         anomaly_ratio = (anomaly_points / total_points) * 100
 
-        print(f"Point-wise (2D) Statistics:")
-        print(f"  Shape:          {self.test_labels_2d.shape}")
-        print(f"  Total points:   {total_points:,}")
-        print(f"  Anomaly points: {int(anomaly_points):,}")
-        print(f"  Anomaly ratio:  {anomaly_ratio:.4f}%")
-
-        # Per-flow统计
         flow_anomalies = np.sum(self.test_labels_2d > 0, axis=0)
         flows_with_anomalies = np.sum(flow_anomalies > 0)
 
-        print(f"\nPer-flow Statistics:")
-        print(f"  Flows with anomalies: {flows_with_anomalies}/{len(flow_anomalies)}")
-        print(f"  Min/Max/Mean:         {flow_anomalies.min()}/{flow_anomalies.max()}/{flow_anomalies.mean():.1f}")
-
-        print(f"{'='*60}")
 
     def __len__(self):
         if self.flag == "train":
@@ -140,13 +88,7 @@ class AbileneSegLoader(Dataset):
             return (self.test.shape[0] - self.win_size) // self.step + 1
 
     def __getitem__(self, index):
-        """
-        返回数据和标签
 
-        Returns:
-            data: (win_size, n_flows) - float32
-            labels: (win_size, n_flows) - float32, 训练/验证时为全0
-        """
         index = index * self.step
 
         if self.flag == "train":
@@ -161,10 +103,6 @@ class AbileneSegLoader(Dataset):
             data = np.float32(self.test[index:index + self.win_size])
             labels = np.float32(self.test_labels_2d[index:index + self.win_size])
 
-        # 维度检查
-        assert data.shape == labels.shape, \
-            f"Shape mismatch: data={data.shape}, labels={labels.shape}"
-
         return data, labels
 
 
@@ -178,9 +116,6 @@ class GEANTSegLoader(Dataset):
         self.scaler = StandardScaler()
         self.args = args
 
-        print(f"\n[GEANT Revolutionary] Loading dataset (flag={flag})")
-
-        # 查找文件
         train_file = self._find_file(root_path, ['train.npy'])
         test_file = self._find_file(root_path, ['test.npy'])
         label_file = self._find_file(root_path, ['test_label.npy'])
@@ -188,32 +123,25 @@ class GEANTSegLoader(Dataset):
         if not all([train_file, test_file, label_file]):
             raise FileNotFoundError(f"Required files not found in {root_path}")
 
-        # 加载数据（允许pickle）
         train_data = np.load(train_file, allow_pickle=True)
         test_data = np.load(test_file, allow_pickle=True)
         test_labels = np.load(label_file, allow_pickle=True)
 
-        # 清洗
         train_data = np.nan_to_num(train_data, nan=0.0, posinf=0.0, neginf=0.0)
         test_data = np.nan_to_num(test_data, nan=0.0, posinf=0.0, neginf=0.0)
 
-        # 归一化
         self.scaler.fit(train_data)
         self.train = self.scaler.transform(train_data)
         self.test = self.scaler.transform(test_data)
 
-        # 验证集
         split_idx = int(len(self.train) * 0.8)
         self.val = self.train[split_idx:]
 
-        # 处理标签
         self.test_labels_2d = test_labels
         if len(self.test_labels_2d.shape) == 1:
             self.test_labels_2d = self.test_labels_2d[:, np.newaxis]
         if self.test_labels_2d.shape[1] == 1 and self.test.shape[1] > 1:
             self.test_labels_2d = np.tile(self.test_labels_2d, (1, self.test.shape[1]))
-
-        print(f"[GEANT Revolutionary] Dataset ready: {len(self.test)} test samples")
 
     def _find_file(self, root_path, filenames):
         for filename in filenames:

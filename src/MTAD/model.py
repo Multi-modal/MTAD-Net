@@ -8,7 +8,7 @@ from PIL import Image
 
 # Import custom modules, assuming they are stored in the parent directory
 sys.path.append("../")
-from src.TimeVLM.vlm_manager import VLMManager
+from src.MTAD.mtad_manager import MTADManager
 from layers.Embed import PatchEmbedding
 from layers.Learnable_TimeSeries_To_Image import LearnableTimeSeriesToImage
 from layers.TimeSeries_To_Image import time_series_to_simple_image
@@ -86,12 +86,12 @@ class PatchMemoryBank:
 
 class Model(nn.Module):
     """
-    Time-VLM model with image and text modalities for enhanced time series forecasting.
+    MTAD model with image and text modalities for enhanced time series forecasting.
     """
     def __init__(self, config, **kwargs):
         super(Model, self).__init__()
         self.config = config
-        self.vlm_manager = VLMManager(config)
+        self.mtad_manager = MTADManager(config)
         self.device = torch.device('cuda:{}'.format(self.config.gpu))
         self.use_mem_gate = config.use_mem_gate
 
@@ -126,7 +126,7 @@ class Model(nn.Module):
         )
         
         self._init_modules(config)
-        self.vlm_model = self.vlm_manager.model
+        self.mtad_model = self.mtad_manager.model
 
     def _init_modules(self, config):
 
@@ -164,7 +164,7 @@ class Model(nn.Module):
         
         # Multimodal enhancement
         self.multimodal_enhancement = nn.Sequential(
-            nn.Linear(self.vlm_manager.hidden_size * 2, config.d_model),  # Combine vision and text
+            nn.Linear(self.mtad_manager.hidden_size * 2, config.d_model),  # Combine vision and text
             nn.GELU(),
             nn.Dropout(config.dropout)
         )
@@ -219,7 +219,7 @@ class Model(nn.Module):
         self.gat_encoder = GATEncoder(
             in_channels=gat_in_channels,
             hidden_channels=64,  # 隐藏层维度，可调
-            out_channels=self.vlm_manager.hidden_size,
+            out_channels=self.mtad_manager.hidden_size,
             num_nodes=self.num_nodes
         )
         
@@ -342,9 +342,9 @@ class Model(nn.Module):
         graph_embeddings = self.gat_encoder(x_graph_in, self.adj_matrix)
 
         prompts = self.text_augmented_learner(x_enc_norm, self.config.content, self.config.pred_len, self.config.seq_len)
-        text_inputs = self.vlm_manager.processor(text=prompts, return_tensors="pt", padding=True, truncation=True)
+        text_inputs = self.mtad_manager.processor(text=prompts, return_tensors="pt", padding=True, truncation=True)
         text_inputs = {k: v.to(self.device) for k, v in text_inputs.items()}
-        text_embeddings = self.vlm_model.get_text_features(**text_inputs)
+        text_embeddings = self.mtad_model.get_text_features(**text_inputs)
 
         # Main prediction branch
         predictions = self.forward_prediction(x_enc_norm, graph_embeddings, text_embeddings)
@@ -393,7 +393,7 @@ class Model(nn.Module):
                 f"Input statistics: min value = {min_value:.3f}, max value = {max_value:.3f}, median value = {median_value:.3f}, the overall trend is {trend_direction}."
             ]
             prompt = " ".join(prompt_parts)
-            prompt = prompt[:self.vlm_manager.max_input_text_length] if len(prompt) > self.vlm_manager.max_input_text_length else prompt
+            prompt = prompt[:self.mtad_manager.max_input_text_length] if len(prompt) > self.mtad_manager.max_input_text_length else prompt
             prompts.append(prompt)  
 
         return prompts
@@ -449,7 +449,7 @@ class Model(nn.Module):
         Args:
         - images: A tensor containing the images to be saved with shape [B, C, H, W]
         """
-        save_dir = "ts-images/timevlm"
+        save_dir = "ts-images/MTAD"
         os.makedirs(save_dir, exist_ok=True)
         
         for i, img_tensor in enumerate(images):

@@ -1,0 +1,9 @@
+anomaly_detection_CLIP_Abilene_flow_wise_hsv_msFalse_dpTrue_MTAD_Abilene_ftM_sl100_ll0_pl100_dm128_fs1_0  
+Accuracy : 0.9675, Precision : 0.9255, Recall : 0.8777, F-score : 0.9010 
+
+anomaly_detection_CLIP_Abilene_flow_wise_hsv_msFalse_dpTrue_MTAD_Abilene_ftM_sl100_ll0_pl100_dm128_fs1_0  
+Accuracy : 0.9675, Precision : 0.9255, Recall : 0.8777, F-score : 0.9010 
+
+anomaly_detection_CLIP_Abilene_flow_wise_hsv_msFalse_dpTrue_MTAD_Abilene_ftM_sl100_ll0_pl100_dm128_fs1_0  
+Accuracy : 0.9675, Precision : 0.9255, Recall : 0.8777, F-score : 0.9010 
+

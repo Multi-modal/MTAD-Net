@@ -6,19 +6,17 @@ from transformers import Blip2Processor, Blip2Model
 
 # Import custom modules, assuming they are stored in the parent directory
 sys.path.append("../")
-from src.TimeVLM.vlm_custom import CustomVLM
+from src.MTAD.mtad_custom import Custommtad
 from layers.models_mae import *
 from transformers.models.vilt import *
 
-class VLMManager:
-    """
-    Manager class to handle different VLM types (CLIP, BLIP2, ViLT).
-    """
+class MTADManager:
+
     def __init__(self, config):
         self.config = config
-        self.vlm_type = config.vlm_type.lower()
+        self.mtad_type = config.mtad_type.lower()
         self.device = self._acquire_device()
-        self._init_vlm()
+        self._init_mtad()
         
     def _acquire_device(self):
         if self.config.use_gpu and torch.cuda.is_available():
@@ -28,20 +26,20 @@ class VLMManager:
             print('Use CPU')
         return device
 
-    def _init_vlm(self):
-        if self.vlm_type == "clip":
+    def _init_mtad(self):
+        if self.mtad_type == "clip":
             self._init_clip()
-        elif self.vlm_type == "blip2":
+        elif self.mtad_type == "blip2":
             self._init_blip2()
-        elif self.vlm_type == "vilt":
+        elif self.mtad_type == "vilt":
             self._init_vilt()
-        elif self.vlm_type == "custom":
+        elif self.mtad_type == "custom":
             self._init_custom()
         else:
-            raise ValueError(f"Unsupported vlm_type: {self.vlm_type}. Choose from ['clip', 'blip2', 'vilt'].")
+            raise ValueError(f"Unsupported mtad_type: {self.mtad_type}. Choose from ['clip', 'blip2', 'vilt'].")
         self.model.to(self.device)
         learnable_params = sum(p.numel() for p in self.model.parameters() if p.requires_grad)
-        print("VLM Learnable model parameters: {:,}".format(learnable_params))
+
 
     def _init_clip(self):
         CLIP_ARCH = 'openai/clip-vit-base-patch32'
@@ -57,7 +55,7 @@ class VLMManager:
             self.model = CLIPModel.from_pretrained(CLIP_ARCH, output_hidden_states=True)
             print("Successfully loaded from remote!")
         
-        self._set_requires_grad(self.model, self.config.finetune_vlm)
+        self._set_requires_grad(self.model, self.config.finetune_mtad)
         self.hidden_size = 512
         self.fusion_dim = self.hidden_size
         self.max_input_text_length = 77
@@ -83,7 +81,7 @@ class VLMManager:
             self.model = Blip2Model.from_pretrained(BLIP_ARCH, output_hidden_states=True)
             print("Successfully loaded BLIP2 from remote!")
         
-        self._set_requires_grad(self.model, self.config.finetune_vlm)
+        self._set_requires_grad(self.model, self.config.finetune_mtad)
         self.hidden_size = 2560
         self.fusion_dim = self.hidden_size
         self.max_input_text_length = 1024
@@ -103,7 +101,7 @@ class VLMManager:
             self.model = ViltModel.from_pretrained(VILT_ARCH, output_hidden_states=True)
             print("Successfully loaded ViLT from remote!")
         
-        self._set_requires_grad(self.model, self.config.finetune_vlm)
+        self._set_requires_grad(self.model, self.config.finetune_mtad)
         self.hidden_size = 768
         if self.config.w_out_query:
             self.fusion_dim = self.hidden_size
@@ -113,10 +111,8 @@ class VLMManager:
         self.fused_feature_len = 156
         
     def _init_custom(self):
-        """
-        Initialize the custom VLM.
-        """
-        self.model = CustomVLM(self.config)
+
+        self.model = Custommtad(self.config)
         self.hidden_size = self.model.hidden_size
         self.max_input_text_length = 512  # Adjust based on text encoder
 
@@ -128,13 +124,13 @@ class VLMManager:
 
     def process_inputs(self, B, images, prompts):
         try: 
-            if self.vlm_type == "clip":
+            if self.mtad_type == "clip":
                 return self._process_clip_inputs(B, images, prompts)
-            elif self.vlm_type == "blip2":
+            elif self.mtad_type == "blip2":
                 return self._process_blip2_inputs(B, images, prompts)
-            elif self.vlm_type == "vilt":
+            elif self.mtad_type == "vilt":
                 return self._process_vilt_inputs(B, images, prompts)
-            elif self.vlm_type == "custom":
+            elif self.mtad_type == "custom":
                 return self._process_custom_inputs(B, images, prompts)
         except Exception as e:
             print(f"Error processing inputs: {e}")

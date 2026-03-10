@@ -2,8 +2,8 @@
 # -*- coding: utf-8 -*-
 """
 或指定数据集:
-  python train_default.py --dataset Abilene
-  python train_default.py --dataset Geant
+  python anomaly_detection-train.py --dataset Abilene
+  python anomaly_detection-train.py --dataset Geant
 """
 
 import subprocess
@@ -12,10 +12,11 @@ import os
 import torch
 import argparse
 import json
+import traceback
 
 
 def get_args():
-    parser = argparse.ArgumentParser(description='TimeVLM Anomaly Detection')
+    parser = argparse.ArgumentParser(description='MTAD Anomaly Detection')
 
     parser.add_argument('--dataset', type=str, default='Abilene', choices=['Abilene', 'Geant'],
                         help='Choose dataset: Abilene or Geant')
@@ -32,12 +33,9 @@ def get_args():
 
     return args
 
-
-# 获取解析后的参数
 args = get_args()
 
 def print_banner(text, width=100):
-    """打印横幅"""
     print("\n" + "=" * width)
     print(text)
     print("=" * width)
@@ -73,7 +71,7 @@ DATASET_CONFIGS = {
 
 
 def load_dataset_stats(root_path, dataset_name):
-    """加载数据集统计信息"""
+
     stats_file = os.path.join(root_path, 'dataset_stats.json')
     default_anomaly_ratio = DATASET_CONFIGS[dataset_name]['default_anomaly_ratio']
 
@@ -87,68 +85,33 @@ def load_dataset_stats(root_path, dataset_name):
     }
 
     if os.path.exists(stats_file):
-        try:
-            with open(stats_file, 'r') as f:
-                loaded_stats = json.load(f)
-
-            print(f"✓ Loaded dataset statistics from: {stats_file}")
-            print(f"\n  Dataset Statistics:")
-            for key in ['train_samples', 'test_samples', 'num_flows',
-                        'anomaly_ratio', 'anomaly_points', 'total_points']:
-                value = loaded_stats.get(key, 'N/A')
-                if key == 'anomaly_ratio':
-                    print(f"  - {key:20s}: {value:.4f}%" if isinstance(value,
-                                                                       (int, float)) else f"  - {key:20s}: {value}")
-                elif key in ['anomaly_points', 'total_points']:
-                    print(f"  - {key:20s}: {value:,}" if isinstance(value, int) else f"  - {key:20s}: {value}")
-                else:
-                    print(f"  - {key:20s}: {value}")
-
-            stats.update(loaded_stats)
-
-        except Exception as e:
-            print(f"⚠️  Warning: Failed to load statistics: {e}")
-            print(f"  Using default values")
-    else:
-        print(f"⚠️  Warning: {stats_file} not found")
-        print(f"  Using default values")
-
+        with open(stats_file, 'r') as f:
+            loaded_stats = json.load(f)
+        stats.update(loaded_stats)
     return stats
 
 
 def validate_dataset(root_path):
-    """验证数据集文件完整性"""
+
     required_files = ['train.npy', 'test.npy', 'test_label.npy']
     missing_files = []
 
-    print(f"\n  Checking dataset files:")
     for filename in required_files:
         filepath = os.path.join(root_path, filename)
-        if os.path.exists(filepath):
-            print(f"    ✓ Found: {filename}")
-        else:
-            print(f"    ❌ Missing: {filename}")
+        if not os.path.exists(filepath):
             missing_files.append(filename)
 
     return missing_files
 
 
 def main():
-    print_banner(" Network Anomaly Detection Training (Default Config)")
-
-    # 环境检查
-    print("\n【环境检查】")
     if torch.cuda.is_available():
-        print(f"  ✓ GPU: {torch.cuda.get_device_name(0)}")
         gpu_available = True
         num_gpus = torch.cuda.device_count()
-        print(f"  ✓ Available GPUs: {num_gpus}")
     else:
-        print(f"  ⚠ GPU not available - using CPU")
         gpu_available = False
         num_gpus = 0
 
-    # 参数解析
     parser = argparse.ArgumentParser(
         description='Network Anomaly Detection Training with Defaults',
         formatter_class=argparse.ArgumentDefaultsHelpFormatter
@@ -212,92 +175,34 @@ def main():
 
     args = parser.parse_args()
 
-    # 数据集配置
-    print_banner("【数据集配置】")
-
     dataset_name = args.dataset
     dataset_config = DATASET_CONFIGS[dataset_name]
-
     print(f"\n  Selected Dataset: {dataset_config['description']}")
 
     # 设置数据集路径
     if args.root_path is None:
         args.root_path = dataset_config['default_path']
-        print(f"  Using default path: {args.root_path}")
-    else:
-        print(f"  Using custom path: {args.root_path}")
-
-    # 检查数据集目录
-    if not os.path.exists(args.root_path):
-        print(f"\n❌ Error: Dataset directory not found: {args.root_path}")
-        print(f"\n请先运行数据预处理:")
-        if dataset_name == 'Abilene':
-            print(f"  python FINAL_FIX_preprocess.py --save_dir {args.root_path}")
-        else:
-            print(f"  python preprocess_{dataset_name.lower()}.py")
-        sys.exit(1)
-
-    # 加载统计信息
     stats = load_dataset_stats(args.root_path, dataset_name)
 
-    # 设置网络流数量
     if args.num_vars is None:
         args.num_vars = stats.get('num_flows', dataset_config['default_flows'])
-        print(f"\n  Auto-detected flows: {args.num_vars}")
-    else:
-        print(f"\n  Using custom flows: {args.num_vars}")
-
-    # 设置异常率
     anomaly_ratio = stats.get('anomaly_ratio')
 
-    # 验证数据集完整性
-    missing_files = validate_dataset(args.root_path)
-    if missing_files:
-        print(f"\n❌ Error: Missing required files: {missing_files}")
-        print(f"  请先运行数据预处理脚本")
-        sys.exit(1)
 
-    # 训练配置摘要
-    print_banner("【训练配置摘要】")
-
-    print(f"\n📊 Dataset:")
-    print(f"  Name:              {dataset_name}")
-    print(f"  Path:              {args.root_path}")
-    print(f"  Flows:             {args.num_vars}")
-    print(f"  Sequence Length:   {args.seq_len}")
-    print(f"  Anomaly Ratio:     {anomaly_ratio:.4f}%")
-
-    print(f"\n🎯 Training:")
-    print(f"  Epochs:            {args.epochs}")
-    print(f"  Batch Size:        {args.batch_size}")
-    print(f"  Learning Rate:     {args.learning_rate}")
-    print(f"  Eval Mode:         {args.eval_mode}")
-
-    print(f"\n🎨 Vision:")
-    print(f"  Color Space:       {args.color_space}")
-    print(f"  Multi-Scale:       {args.use_multi_scale}")
-    print(f"  Detail Preserve:   {args.use_detail_preserve}")
-
-    # 自动生成Model ID
     if args.model_id is None:
         args.model_id = (
             f"{dataset_name}_{args.eval_mode}_"
             f"{args.color_space}_ms{args.use_multi_scale}_dp{args.use_detail_preserve}"
         )
-        print(f"\n✓ Auto-generated Model ID: {args.model_id}")
 
-    # GPU配置
     use_gpu = gpu_available
     use_multi_gpu = args.use_multi_gpu and gpu_available and num_gpus > 1
-
-    # 构建训练命令
-    print_banner("【启动训练】")
 
     cmd = [
         sys.executable, "run.py",
         "--task_name", "anomaly_detection",
         "--is_training", "1",
-        "--model", "TimeVLM",
+        "--model", "MTAD",
         "--model_id", args.model_id,
         "--data", dataset_config['data_type'],
         "--root_path", args.root_path,
@@ -332,7 +237,7 @@ def main():
         # "--weight_decay", str(args.weight_decay),
         "--anomaly_ratio", str(anomaly_ratio),
         # "--eval_mode", args.eval_mode,
-        "--vlm_type", "CLIP",
+        "--mtad_type", "CLIP",
         "--image_size", "224",
         "--patch_len", "16",
         "--stride", "8",
@@ -340,7 +245,7 @@ def main():
         "--patch_memory_size", "100",
         "--norm_const", "0.4",
         "--top_k", "5",
-        "--finetune_vlm", "False",
+        "--finetune_mtad", "False",
         "--use_mem_gate", "False",
         # "--color_space", args.color_space,
         # "--vision_patch_size", str(args.vision_patch_size),
@@ -357,35 +262,18 @@ def main():
     if use_multi_gpu:
         cmd.extend(["--use_multi_gpu", "--devices", "0,1"])
 
-    print(f"\n启动训练: {dataset_name} ({args.eval_mode} mode)")
-    print(f"Model ID: {args.model_id}\n")
-
-    # 启动训练
     try:
         result = subprocess.run(cmd)
-
-        if result.returncode == 0:
-            print_banner("✅ Training completed successfully!")
-            print(f"\n📁 Results saved to:")
-            print(f"  ./checkpoints/{args.model_id}/")
-            print(f"  ./test_results/{args.model_id}/")
-            print(f"  ./training_history/{args.model_id}/")
-            print(f"  anomaly_detection.txt")
-        else:
-            print_banner(f"❌ Training failed (exit code: {result.returncode})")
-
         sys.exit(result.returncode)
 
     except KeyboardInterrupt:
-        print_banner("⏹️  Training interrupted by user")
+        print_banner("Training interrupted by user")
         sys.exit(1)
 
     except Exception as e:
-        print_banner(f"❌ Error: {e}")
-        import traceback
+        print_banner(f"Error: {e}")
         traceback.print_exc()
         sys.exit(1)
-
 
 if __name__ == "__main__":
     main()

@@ -8,12 +8,12 @@ from layers.Cross_Attention import CrossAttention
 from layers.models_mae import *
 from transformers.models.vilt import *
 
-class CustomVLM(nn.Module):
+class Custommtad(nn.Module):
     """
     Custom Vision-Language Model that handles separate feature extraction for vision and text.
     """
     def __init__(self, config):
-        super(CustomVLM, self).__init__()
+        super(Custommtad, self).__init__()
         self.config = config
         self.device = self._acquire_device()
         
@@ -40,7 +40,7 @@ class CustomVLM(nn.Module):
         self.vision_processor = ViTFeatureExtractor.from_pretrained('google/vit-base-patch16-224')
         self.vision_encoder = ViTModel.from_pretrained('google/vit-base-patch16-224')
         self.vision_encoder.to(self.device)
-        self._set_requires_grad(self.vision_encoder, self.config.finetune_vlm)
+        self._set_requires_grad(self.vision_encoder, self.config.finetune_mtad)
 
     def _init_text_encoder(self):
         """
@@ -50,7 +50,7 @@ class CustomVLM(nn.Module):
         self.text_processor = BertTokenizer.from_pretrained('bert-base-uncased')
         self.text_encoder = BertModel.from_pretrained('bert-base-uncased')
         self.text_encoder.to(self.device)
-        self._set_requires_grad(self.text_encoder, self.config.finetune_vlm)
+        self._set_requires_grad(self.text_encoder, self.config.finetune_mtad)
 
     def _set_requires_grad(self, model, value):
         """
