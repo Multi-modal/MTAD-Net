@@ -6,6 +6,10 @@ This repository contains the code for the paper, Multimodal Learning for Anomaly
 (The code is being sorted out and we will continue to update it.)
 
 ##  Overview
+<img width="1035" height="608" alt="image" src="https://github.com/user-attachments/assets/c15df94a-4253-4a08-a4f4-ac4ec124778c" />
+
+                  Overview of the Multimodal Traffic Anomaly Detection for Computer Network (MTAD-Net).
+
 
 MTAD-Net integrates three complementary data sources to achieve a comprehensive characterization of network behavior:
 1. Temporal Traffic Patterns: A temporal encoder uses patch-based processing and a memory mechanism to capture local and global variations.
